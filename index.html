@@ -41,13 +41,12 @@
             color: #a0a0c0;
         }
 
-        /* Контейнер, где слайды будут идти один за другим */
         .presentation-scroll-container {
             width: 100%;
             max-width: 900px;
             display: flex;
             flex-direction: column;
-            gap: 20px; /* Расстояние между слайдами */
+            gap: 20px;
         }
 
         .slide-card {
@@ -59,7 +58,6 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            position: relative;
         }
 
         .slide-info {
@@ -99,54 +97,72 @@
     <div class="presentation-scroll-container" id="slides-container"></div>
 
     <script>
-        // Имя файла вашего PDF в репозитории GitHub (переименуйте файл в presentation.pdf)
-        const url = './presentation.pdf';
-
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
-        const scale = 2; // Качество отображения страниц
+        const scale = 2;
         const container = document.getElementById('slides-container');
 
-        // Загружаем PDF-документ
-        pdfjsLib.getDocument(url).promise.then(function(pdfDoc) {
-            // Прячем надпись загрузки
-            document.getElementById('loading').style.display = 'none';
+        // УМНЫЙ ПОИСК: Пытаемся угадать имя файла, если оно написано с ошибками или по-русски
+        const possibleNames = [
+            './presentation.pdf',
+            './presentation.PDF',
+            './Презентация Белянская С.С..pdf',
+            './Презентация Белянская С.С..PDF',
+            'Презентация Белянская С.С..pdf'
+        ];
 
-            // Запускаем цикл, который отрисует каждую страницу по очереди
-            for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                
-                // 1. Создаем карточку для слайда
-                const card = document.createElement('div');
-                card.className = 'slide-card';
-
-                // 2. Добавляем плашку с номером слайда
-                const info = document.createElement('div');
-                info.className = 'slide-info';
-                info.textContent = `Слайд № ${pageNum}`;
-                card.appendChild(info);
-
-                // 3. Создаем холст (canvas) для самого слайда
-                const canvas = document.createElement('canvas');
-                card.appendChild(canvas);
-                container.appendChild(card);
-
-                const ctx = canvas.getContext('2d');
-
-                // 4. Рендерим страницу PDF на холст
-                pdfDoc.getPage(pageNum).then(function(page) {
-                    const viewport = page.getViewport({ scale: scale });
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-
-                    const renderContext = {
-                        canvasContext: ctx,
-                        viewport: viewport
-                    };
-                    page.render(renderContext);
-                });
+        function tryLoadPdf(index) {
+            if (index >= possibleNames.length) {
+                // Если перебрали все имена и ничего не нашли
+                document.getElementById('loading').innerHTML = 
+                    `<div style="color:#ff4a4a; padding: 20px; text-align:center;">` +
+                    `<h4>Презентация не найдена на сервере</h4>` +
+                    `<p style="font-size:0.9rem; color:#aaa; margin-top:5px;">` +
+                    `Пожалуйста, переименуйте ваш PDF-файл на GitHub так, чтобы он назывался латинскими буквами: <b>presentation.pdf</b></p></div>`;
+                return;
             }
-        }).catch(function(error) {
-            console.error('Ошибка:', error);
-            document.getElementById('loading').innerHTML = 
-                `<div style="color:#ff4a4a; padding: 20px; text-align:center;">` +
-                `<h4>Ошибка загрузки презентации</h4>
+
+            const currentUrl = possibleNames[index];
+            
+            pdfjsLib.getDocument(currentUrl).promise.then(function(pdfDoc) {
+                // Если файл успешно подгрузился, убираем загрузку и рендерим
+                document.getElementById('loading').style.display = 'none';
+
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    const card = document.createElement('div');
+                    card.className = 'slide-card';
+
+                    const info = document.createElement('div');
+                    info.className = 'slide-info';
+                    info.textContent = `Слайд № ${pageNum}`;
+                    card.appendChild(info);
+
+                    const canvas = document.createElement('canvas');
+                    card.appendChild(canvas);
+                    container.appendChild(card);
+
+                    const ctx = canvas.getContext('2d');
+
+                    pdfDoc.getPage(pageNum).then(function(page) {
+                        const viewport = page.getViewport({ scale: scale });
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        const renderContext = {
+                            canvasContext: ctx,
+                            viewport: viewport
+                        };
+                        page.render(renderContext);
+                    });
+                }
+            }).catch(function(error) {
+                // Если текущее имя выдало ошибку, пробуем следующее из списка
+                console.log(`Имя ${currentUrl} не подошло, пробуем следующее...`);
+                tryLoadPdf(index + 1);
+            });
+        }
+
+        // Запускаем автоматический подбор имени файла
+        tryLoadPdf(0);
+    </script>
+</body>
+</html>
